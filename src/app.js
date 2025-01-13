@@ -19,8 +19,15 @@ app.use(express.static("public"));
 
 app.use(cookieParser());
 
+// / route
 app.get("/", (req, res) => {
-    res.send("Hello World!");
+    res.send("API is running....");
 });
+
+// routes import
+import userRouter from './routes/UserRoutes.js'
+
+// routes decleration
+app.use("/api/v1/users", userRouter);
 
 export default app;
