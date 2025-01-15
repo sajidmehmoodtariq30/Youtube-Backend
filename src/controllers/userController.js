@@ -15,12 +15,12 @@ const registerUser = asyncHandler(async (req, res) => {
     ) {
         res.status(400);
         throw new ApiError("Please fill all fields", 400);
-    } else if (!email.contains("@")) {
+    } else if (!email.includes("@")) {
         res.status(400);
         throw new ApiError("Invalid email", 400);
     }
     // check if user already exists
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [{ email }, { username }],
     });
     if (existedUser) {
@@ -44,7 +44,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // create user object create entry in db
     const user = await User.create({
         fullName,
-        Avatar: avatar.url,
+        avatar: avatar.url,
         coverImage: coverImage?.url || null, // if cover image does not exists
         email,
         username: username.toLowerCase(),

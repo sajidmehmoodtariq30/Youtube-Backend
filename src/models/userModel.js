@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { JWT } from "jsonwebtoken";
+import pkg from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
 const userSchema = new Schema(
@@ -34,7 +34,7 @@ const userSchema = new Schema(
         },
         watchHistory: [
             {
-                type: Schema.type.ObjectId,
+                type: Schema.Types.ObjectId,
                 ref: "Video",
                 required: true,
             },
@@ -62,7 +62,7 @@ userSchema.methods.comparePassword = async function (password) {
 };
 
 userSchema.methods.generateAccessToken = function () {
-    return JWT.sign(
+    return pkg.sign(
         {
             _id: this._id,
             username: this.username,
