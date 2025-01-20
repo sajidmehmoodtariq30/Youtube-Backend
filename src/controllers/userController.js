@@ -7,6 +7,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 const registerUser = asyncHandler(async (req, res) => {
     // get user data from frontend
     const { fullName, email, username, password } = req.body;
+
     // validation - not empty
     if (
         [fullName, email, username, password].some(
@@ -19,6 +20,7 @@ const registerUser = asyncHandler(async (req, res) => {
         res.status(400);
         throw new ApiError("Invalid email", 400);
     }
+
     // check if user already exists
     const existedUser = await User.findOne({
         $or: [{ email }, { username }],
@@ -27,20 +29,28 @@ const registerUser = asyncHandler(async (req, res) => {
         res.status(409);
         throw new ApiError("User already exists", 409);
     }
+
     // check for files
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.cover[0]?.path;
+    let coverImageLocalPath = null;
+    if(req.files && Array.isArray(req.files.cover && req.files.cover.length > 0)) {
+        coverImageLocalPath = req.files.cover[0].path;
+    }
     if (!avatarLocalPath) {
         res.status(400);
         throw new ApiError("Please upload avatar", 400);
     }
     // upload them to cloudinary, check avatar
     const avatar = await uploadOnCloudinary(avatarLocalPath);
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    let coverImage = null;
+    if(coverImageLocalPath) {
+        coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    }
     if (!avatar) {
         res.status(500);
         throw new ApiError("Avatar upload failed", 500);
     }
+
     // create user object create entry in db
     const user = await User.create({
         fullName,

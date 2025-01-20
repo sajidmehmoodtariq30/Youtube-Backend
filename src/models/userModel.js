@@ -1,10 +1,12 @@
 import mongoose, { Schema } from "mongoose";
 import pkg from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+dotenv.config();
 
 const userSchema = new Schema(
     {
-        name: {
+        username: {
             type: String,
             required: true,
             trim: true,
@@ -77,7 +79,7 @@ userSchema.methods.generateAccessToken = function () {
 };
 
 userSchema.methods.generateRefreshToken = function () {
-    return JWT.sign(
+    return pkg.sign(
         {
             _id: this._id,
         },
