@@ -160,87 +160,41 @@ const logoutUser = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
-const refreshAccessToken = asyncHandler(async (req, res) => {
-    const incommingRefreshToken =
-        req.cookies.refreshToken || req.body.refreshToken;
-    if (!incommingRefreshToken) {
+const refreshAccessToken = asyncHandler(async (req, res)=>{
+    const incommingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    if(!incommingRefreshToken){
         throw new ApiError(400, "Refresh token is required");
     }
     try {
         const decodedToken = jwt.verify(
             incommingRefreshToken,
-            process.env.REFRESH_TOKEN_SECRET
-        );
-
-        const user = await User.findById(decodedToken?._id);
-        if (!user) {
+            process.env.REFRESH_TOKEN_SECRET,
+        )
+    
+        const user = await User.findById(decodedToken?._id)
+        if(!user){
             throw new ApiError(400, "Refresh token is Invalid");
         }
         if (incommingRefreshToken !== user.refreshToken) {
             throw new ApiError(400, "Refresh token is Invalid");
         }
-
-        const { accessToken, newRefreshToken } =
-            await generateAccessAndRefreshToken(user._id);
+    
+        const { accessToken, newRefreshToken } = await generateAccessAndRefreshToken(user._id);
         const options = {
             httpOnly: true,
             secure: true,
-        };
+        }
         return res
             .status(200)
             .cookie("refreshToken", refreshToken, options)
             .cookie("accessToken", accessToken, options)
             .json(
-                new ApiResponse(
-                    200,
-                    { accessToken, mewRefreshToken },
-                    "Token refreshed successfully"
-                )
-            );
+                new ApiResponse(200, { accessToken, mewRefreshToken }, "Token refreshed successfully")
+            )
     } catch (error) {
         throw new ApiError(400, "Refresh token is Invalid");
+        
     }
-});
+})
 
-const editUser = asyncHandler(async (req, res) => {
-    const { fullName, email, password } = req.body;
-    const avatarLocalPath = req.files?.avatar?.[0]?.path;
-    const coverImageLocalPath = req.files.cover[0]?.path;
-
-    if (email && !email.includes("@")) {
-        throw new ApiError(400, "Invalid email format");
-    }
-
-    let avatar = null;
-    let coverImage = null;
-
-    if (avatarLocalPath) {
-        avatar = await uploadOnCloudinary(avatarLocalPath);
-        if (!avatar) throw new ApiError(500, "Avatar upload failed");
-    }
-
-    if (coverImageLocalPath) {
-        coverImage = await uploadOnCloudinary(coverImageLocalPath);
-        if (!coverImage) throw new ApiError(500, "Cover image upload failed");
-    }
-
-    const user = await User.findById(req.user._id);
-
-    if (fullName) user.fullName = fullName;
-    if (email) user.email = email;
-    if (password) user.password = password;
-    if (avatar) user.avatar = avatar.url;
-    if (coverImage) user.coverImage = coverImage.url;
-
-    const updatedUser = await user.save();
-
-    const userResponse = updatedUser.toObject();
-    delete userResponse.password;
-    delete userResponse.refreshToken;
-
-    res.status(200).json(
-        new ApiResponse("User updated successfully", userResponse)
-    );
-});
-
-export { registerUser, loginUser, logoutUser, refreshAccessToken, editUser };
+export { registerUser, loginUser, logoutUser, refreshAccessToken };
