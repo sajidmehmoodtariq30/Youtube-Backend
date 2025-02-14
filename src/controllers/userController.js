@@ -1,9 +1,26 @@
 import asyncHandler from "../utils/asyncHandler.js";
+import cloudinary from 'cloudinary';
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/userModel.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+
+const extractPublicIdFromUrl = (url) => {
+    const parts = url.split("/");
+    const publicIdWithExtension = parts[parts.length - 1];
+    const publicId = publicIdWithExtension.split(".")[0];
+    return publicId;
+};
+
+export const deleteFromCloudinary = async (publicId) => {
+    try {
+        if (!publicId) return;
+        await cloudinary.uploader.destroy(publicId);
+    } catch (error) {
+        console.error("Failed to delete image from Cloudinary:", error);
+    }
+};
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -48,7 +65,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // check for files
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    let coverImageLocalPath = null;
+    let coverImageLocalPath = req.files?.cover[0]?.path;
     if (
         req.files &&
         Array.isArray(req.files.cover && req.files.cover.length > 0)
@@ -160,41 +177,140 @@ const logoutUser = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
-const refreshAccessToken = asyncHandler(async (req, res)=>{
-    const incommingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
-    if(!incommingRefreshToken){
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incommingRefreshToken =
+        req.cookies.refreshToken || req.body.refreshToken;
+    if (!incommingRefreshToken) {
         throw new ApiError(400, "Refresh token is required");
     }
     try {
         const decodedToken = jwt.verify(
             incommingRefreshToken,
-            process.env.REFRESH_TOKEN_SECRET,
-        )
-    
-        const user = await User.findById(decodedToken?._id)
-        if(!user){
+            process.env.REFRESH_TOKEN_SECRET
+        );
+
+        const user = await User.findById(decodedToken?._id);
+        if (!user) {
             throw new ApiError(400, "Refresh token is Invalid");
         }
         if (incommingRefreshToken !== user.refreshToken) {
             throw new ApiError(400, "Refresh token is Invalid");
         }
-    
-        const { accessToken, newRefreshToken } = await generateAccessAndRefreshToken(user._id);
+
+        const { accessToken, newRefreshToken } =
+            await generateAccessAndRefreshToken(user._id);
         const options = {
             httpOnly: true,
             secure: true,
-        }
+        };
         return res
             .status(200)
             .cookie("refreshToken", refreshToken, options)
             .cookie("accessToken", accessToken, options)
             .json(
-                new ApiResponse(200, { accessToken, mewRefreshToken }, "Token refreshed successfully")
-            )
+                new ApiResponse(
+                    200,
+                    { accessToken, mewRefreshToken },
+                    "Token refreshed successfully"
+                )
+            );
     } catch (error) {
         throw new ApiError(400, "Refresh token is Invalid");
-        
     }
-})
+});
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+const editPassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword, confPassword } = req.body;
+
+    if (oldPassword === newPassword)
+        throw new ApiError(
+            400,
+            "New password cannot be the same as old password"
+        );
+
+    if (newPassword !== confPassword)
+        throw new ApiError(400, "Passwords do not match");
+
+    const user = User.findById(req.user._id);
+
+    if (!(await user.comparePasssword(oldPassword)))
+        throw new ApiError(400, "Invalid password");
+
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select(
+        "-password -refreshToken"
+    );
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "User found successfully"));
+});
+
+const editUser = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body;
+    const avatarLocalPath = req.files?.avatar[0]?.path;
+    let coverImageLocalPath = req.files?.cover[0]?.path;
+
+    if (email && !email.includes("@")) {
+        throw new ApiError(400, "Invalid email format");
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    let avatar = null;
+    let coverImage = null;
+
+    if (avatarLocalPath) {
+        if (user.avatar) {
+            const publicId = extractPublicIdFromUrl(user.avatar);
+            await deleteFromCloudinary(publicId);
+        }
+        avatar = await uploadOnCloudinary(avatarLocalPath);
+        if (!avatar) throw new ApiError(500, "Avatar upload failed");
+    }
+
+    if(coverImageLocalPath){
+        if (user.coverImage) {
+            const publicId = extractPublicIdFromUrl(user.coverImage);
+            await deleteFromCloudinary(publicId);
+        }
+        coverImage = await uploadOnCloudinary(coverImageLocalPath);
+        
+        if (!coverImage) throw new ApiError(500, "Cover image upload failed");
+    }
+
+    if (fullName && fullName !== user.fullName) user.fullName = fullName;
+    if (email && email !== user.email) user.email = email;
+    if (avatar) user.avatar = avatar.url;
+    if (coverImage) user.coverImage = coverImage.url;
+
+    const updatedUser = await user.save();
+
+    const userResponse = updatedUser.toObject();
+    delete userResponse.password;
+    delete userResponse.refreshToken;
+
+    res.status(200).json(
+        new ApiResponse("User updated successfully", userResponse)
+    );
+});
+
+export {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    editPassword,
+    getCurrentUser,
+    editUser,
+};
