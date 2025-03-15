@@ -7,6 +7,8 @@ import {
     editPassword,
     getCurrentUser,
     editUser,
+    getUserChannelProfile,
+    getWatchHistory,
 } from "../controllers/userController.js";
 import { upload } from "../middleware/multerMiddleware.js";
 import { verifyJWT } from "../middleware/authMiddleware.js";
@@ -35,5 +37,8 @@ router.route("/edit").put(
 );
 router.route("/edit-password").put(verifyJWT, editPassword);
 router.route("/me").get(verifyJWT, getCurrentUser);
+
+router.route("/c/:username").get(verifyJWT, getUserChannelProfile);
+router.route("/history").get(verifyJWT, getWatchHistory);
 
 export default router;
